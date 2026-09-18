@@ -1,0 +1,63 @@
+version: "3.9"
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:15-alpine
+    container_name: aml_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-aml_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aml_password}
+      POSTGRES_DB: ${POSTGRES_DB:-aml_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aml_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # FastAPI Backend
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aml_backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-aml_user}:${POSTGRES_PASSWORD:-aml_password}@db:5432/${POSTGRES_DB:-aml_db}
+      DEBUG: ${DEBUG:-false}
+      SECRET_KEY: ${SECRET_KEY:-change_me_in_production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./models:/app/models
+      - ./ml/data:/app/ml/data
+
+  # ---------------------------------------------------------------------------
+  # React Frontend (added in Phase 14)
+  # ---------------------------------------------------------------------------
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile
+  #   container_name: aml_frontend
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - backend
+
+volumes:
+  postgres_data:
