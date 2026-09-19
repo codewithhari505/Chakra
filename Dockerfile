@@ -25,7 +25,7 @@ ENV PATH=/root/.local/bin:$PATH
 
 COPY backend/ /app/backend/
 COPY ml/ /app/ml/
-COPY models/ /app/models/
+RUN mkdir -p /app/models
 
 ENV PYTHONPATH=/app/backend:/app
 ENV PYTHONUNBUFFERED=1
