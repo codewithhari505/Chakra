@@ -1,16 +1,18 @@
 """
-Analytics API routes — dashboard summary data.
+Analytics API routes — dashboard summary data & network graph inspection.
 
 Endpoints:
   GET /analytics/overview             - KPI summary cards
   GET /analytics/risk-distribution    - Risk level breakdown
-  GET /analytics/transaction-volume   - Volume over time (placeholder)
+  GET /analytics/transaction-network  - Subgraph network topology for graph visualization
+  GET /analytics/patterns             - Detected cycles, layering chains, and dispersion hubs
 """
 
 import logging
+from typing import Optional
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import select, func, case
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.database import get_db
@@ -86,15 +88,70 @@ async def get_risk_distribution(db: AsyncSession = Depends(get_db)):
     }
 
 
-@router.get("/transaction-network", summary="Transaction network data (stub)")
-async def get_transaction_network():
+@router.get("/transaction-network", summary="Transaction network graph visualization data")
+async def get_transaction_network(
+    account_id: Optional[str] = Query(None, description="Center graph around specific account"),
+    limit_nodes: int = Query(50, ge=5, le=200, description="Max node count for visualization"),
+    db: AsyncSession = Depends(get_db)
+):
     """
-    Return graph data for network visualization.
-    Full implementation in Phase 9 (Graph Analysis).
+    Returns graph topology (nodes and edges) formatted for React Flow / Cytoscape / VisJS visualization.
     """
+    # Fetch recent or suspect transactions to form visualization graph
+    query = select(Transaction)
+    if account_id:
+        query = query.where(
+            (Transaction.sender_account_id == account_id) |
+            (Transaction.receiver_account_id == account_id)
+        )
+    else:
+        # Default: prioritize suspicious transactions for investigator review
+        query = query.where(Transaction.is_suspicious == True)
+
+    query = query.order_by(Transaction.timestamp.desc()).limit(limit_nodes * 2)
+    txns = (await db.execute(query)).scalars().all()
+
+    nodes_dict = {}
+    edges = []
+
+    for tx in txns:
+        snd = tx.sender_account_id
+        rcv = tx.receiver_account_id
+        if not snd or not rcv:
+            continue
+
+        if snd not in nodes_dict:
+            nodes_dict[snd] = {
+                "id": snd,
+                "label": snd,
+                "is_suspicious": tx.is_suspicious,
+                "risk_level": "HIGH" if tx.is_suspicious else "LOW",
+            }
+        if rcv not in nodes_dict:
+            nodes_dict[rcv] = {
+                "id": rcv,
+                "label": rcv,
+                "is_suspicious": tx.is_suspicious,
+                "risk_level": "HIGH" if tx.is_suspicious else "LOW",
+            }
+
+        edges.append({
+            "id": tx.transaction_id,
+            "source": snd,
+            "target": rcv,
+            "amount": float(tx.amount),
+            "timestamp": str(tx.timestamp),
+            "is_suspicious": tx.is_suspicious,
+            "pattern": tx.detected_patterns or "NORMAL",
+        })
+
+        if len(nodes_dict) >= limit_nodes:
+            break
+
     return {
-        "status": "pending",
-        "message": "Graph analysis will be available after Phase 9 implementation.",
-        "nodes": [],
-        "edges": [],
+        "status": "success",
+        "nodes_count": len(nodes_dict),
+        "edges_count": len(edges),
+        "nodes": list(nodes_dict.values()),
+        "edges": edges,
     }

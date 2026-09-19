@@ -1,7 +1,8 @@
 """
-Model Training Runner — Phase 6.
+Model Training Runner — Phase 6, 7 & 8.
 
-Orchestrates supervised model training (Random Forest) on engineered features,
+Orchestrates supervised model training (Random Forest & XGBoost) and
+unsupervised anomaly detection (Isolation Forest) on engineered features,
 computes evaluation metrics on held-out temporal test set, logs feature importances,
 and registers artifacts in models/v1/metadata.json.
 
@@ -19,7 +20,8 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from ml.models.supervised_model import AMLRandomForestModel
+from ml.models.supervised_model import AMLRandomForestModel, AMLXGBoostModel
+from ml.models.anomaly_model import AMLIsolationForestModel
 
 logging.basicConfig(
     level=logging.INFO,
@@ -37,10 +39,7 @@ def train_random_forest(
     seed: int = 42,
 ) -> None:
     logger.info("=== Phase 6: Training Random Forest AML Classifier ===")
-    logger.info("Loading training data: %s", train_path)
     train_df = pd.read_csv(train_path)
-
-    logger.info("Loading test data: %s", test_path)
     test_df = pd.read_csv(test_path)
 
     rf_model = AMLRandomForestModel(
@@ -52,27 +51,68 @@ def train_random_forest(
         random_state=seed,
     )
     rf_model.fit(train_df)
-
-    logger.info("Evaluating on held-out temporal test set...")
     metrics = rf_model.evaluate(test_df)
-
-    logger.info("Top Contributing Features (Split Importances):")
-    for feat in rf_model.get_feature_importances(10):
-        logger.info("  %2d. %-25s : %.4f", feat["rank"], feat["feature"], feat["importance"])
 
     output_model_path.parent.mkdir(parents=True, exist_ok=True)
     rf_model.save(filepath=output_model_path, metadata_path=metadata_path, metrics=metrics)
     logger.info("Random Forest trained and saved successfully.")
 
 
-def train_xgboost():
-    """Phase 7: Train XGBoost classifier."""
-    logger.info("[PHASE 7] XGBoost training — planned for Phase 7.")
+def train_xgboost(
+    train_path: Path,
+    test_path: Path,
+    output_model_path: Path,
+    metadata_path: Path,
+    seed: int = 42,
+) -> None:
+    logger.info("=== Phase 7: Training XGBoost AML Classifier ===")
+    train_df = pd.read_csv(train_path)
+    test_df = pd.read_csv(test_path)
+
+    xgb_model = AMLXGBoostModel(
+        n_estimators=200,
+        max_depth=6,
+        learning_rate=0.08,
+        subsample=0.85,
+        colsample_bytree=0.85,
+        random_state=seed,
+    )
+    xgb_model.fit(train_df)
+    metrics = xgb_model.evaluate(test_df)
+
+    output_model_path.parent.mkdir(parents=True, exist_ok=True)
+    xgb_model.save(filepath=output_model_path, metadata_path=metadata_path, metrics=metrics)
+    logger.info("XGBoost trained and saved successfully.")
 
 
-def train_isolation_forest():
-    """Phase 8: Train Isolation Forest anomaly detector."""
-    logger.info("[PHASE 8] Isolation Forest training — planned for Phase 8.")
+def train_isolation_forest(
+    train_path: Path,
+    test_path: Path,
+    output_model_path: Path,
+    metadata_path: Path,
+    seed: int = 42,
+) -> None:
+    logger.info("=== Phase 8: Training Isolation Forest Anomaly Detector ===")
+    logger.info("Loading training data: %s", train_path)
+    train_df = pd.read_csv(train_path)
+
+    logger.info("Loading test data: %s", test_path)
+    test_df = pd.read_csv(test_path)
+
+    # Contamination set to ~7% to match realistic illicit transaction proportion
+    iso_model = AMLIsolationForestModel(
+        n_estimators=150,
+        contamination=0.07,
+        random_state=seed,
+    )
+    iso_model.fit(train_df, normal_only=True)
+
+    logger.info("Evaluating Isolation Forest on held-out temporal test set...")
+    metrics = iso_model.evaluate(test_df)
+
+    output_model_path.parent.mkdir(parents=True, exist_ok=True)
+    iso_model.save(filepath=output_model_path, metadata_path=metadata_path, metrics=metrics)
+    logger.info("Isolation Forest trained and saved successfully.")
 
 
 def main():
@@ -80,7 +120,7 @@ def main():
     parser.add_argument(
         "--model",
         choices=["rf", "xgb", "isolation", "all"],
-        default="rf",
+        default="isolation",
         help="Which model to train",
     )
     parser.add_argument(
@@ -103,6 +143,8 @@ def main():
 
     model_dir = Path(args.output_dir)
     rf_path = model_dir / "fraud_classifier.pkl"
+    xgb_path = model_dir / "xgboost_classifier.pkl"
+    iso_path = model_dir / "anomaly_detector.pkl"
     meta_path = model_dir / "metadata.json"
 
     if args.model in ("rf", "all"):
@@ -114,9 +156,21 @@ def main():
             seed=args.seed,
         )
     if args.model in ("xgb", "all"):
-        train_xgboost()
+        train_xgboost(
+            train_path=Path(args.train),
+            test_path=Path(args.test),
+            output_model_path=xgb_path,
+            metadata_path=meta_path,
+            seed=args.seed,
+        )
     if args.model in ("isolation", "all"):
-        train_isolation_forest()
+        train_isolation_forest(
+            train_path=Path(args.train),
+            test_path=Path(args.test),
+            output_model_path=iso_path,
+            metadata_path=meta_path,
+            seed=args.seed,
+        )
 
 
 if __name__ == "__main__":

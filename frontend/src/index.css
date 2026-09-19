@@ -1,0 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { font-size: 16px; }
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: #F8FAFC;
+  color: #111827;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #D1D5DB; }
+
+.react-flow__attribution { display: none !important; }
+
+/* ReactFlow custom */
+.react-flow__node { font-family: 'Inter', sans-serif; }
+.react-flow__controls { background: white; border: 1px solid #E5E7EB; border-radius: 10px; box-shadow: none; }
+.react-flow__controls-button { background: white; border: none; border-bottom: 1px solid #F3F4F6; }
+.react-flow__minimap { border: 1px solid #E5E7EB; border-radius: 10px; overflow: hidden; }

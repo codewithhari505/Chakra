@@ -17,7 +17,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api import transactions, accounts, alerts, analytics
+from app.api import transactions, accounts, alerts, analytics, investigations
 from app.config import get_settings
 from app.database.database import check_db_connection
 from app.database.init_db import init_db
@@ -198,3 +198,4 @@ app.include_router(transactions.router, prefix="/api/v1")
 app.include_router(accounts.router, prefix="/api/v1")
 app.include_router(alerts.router, prefix="/api/v1")
 app.include_router(analytics.router, prefix="/api/v1")
+app.include_router(investigations.router, prefix="/api/v1")
